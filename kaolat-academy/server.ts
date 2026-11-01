@@ -157,9 +157,19 @@ const uploadImage = multer({
   },
 });
 
-// Middleware with large payload limits
+// Middleware with large payload limits and CORS
 app.use(express.json({ limit: '100mb' }));
 app.use(express.urlencoded({ extended: true, limit: '100mb' }));
+
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, x-admin-key, Authorization');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 export interface EpisodeItem {
   id: string;
@@ -188,8 +198,139 @@ export interface CourseItem {
   episodes: EpisodeItem[];
 }
 
-// Load or initialize course database (clean empty start as requested)
 const COURSES_BACKUP_FILE = path.join(DATA_DIR, 'courses.backup.json');
+
+const INITIAL_DEFAULT_COURSES: CourseItem[] = [
+  {
+    id: 'course-1793496540162-y9mfl',
+    title: 'ฟิสิกส์ ม.4: กลศาสตร์และการเคลื่อนที่',
+    category: 'ฟิสิกส์',
+    instructor: 'อาจารย์เกาลัด',
+    description: 'เนื้อหาฟิสิกส์ ม.4 เทอม 1 เรื่องการเคลื่อนที่แนวตรงและกฎนิวตัน',
+    level: 'ม.ปลาย',
+    coverImage: '/src/assets/images/physics_course_cover_1793422048834.jpg',
+    createdAt: new Date().toISOString(),
+    episodes: [
+      {
+        id: 'ep-1793497564369-s8ps',
+        epNumber: 1,
+        title: 'EP 1: การเคลื่อนที่แนวตรงและแรง (ตอนที่ 1)',
+        description: 'บทเรียนฟิสิกส์บรรยายเต็มความยาว 29 นาที',
+        duration: '29:43',
+        videoUrl: '/api/videos/2025-12-18_19-27-06_1793496525521_571169.mp4',
+        videoFileName: '2025-12-18_19-27-06_1793496525521_571169.mp4',
+        uploadedAt: new Date().toISOString(),
+        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
+        quiz: [
+          {
+            question: 'หน่วยของแรงในระบบ SI คืออะไร?',
+            options: ['จูล (Joule)', 'นิวตัน (Newton)', 'วัตต์ (Watt)', 'ปาสคาล (Pascal)'],
+            answerIndex: 1
+          }
+        ],
+        comments: []
+      },
+      {
+        id: 'ep-1793497564370-8dep',
+        epNumber: 2,
+        title: 'EP 2: สรุปใจความสำคัญและทบทวนสูตร',
+        description: 'คลิปทบทวนความเข้าใจ',
+        duration: '00:23',
+        videoUrl: '/api/videos/2026-11-01_08-32-58_1793496816480_694103.mp4',
+        videoFileName: '2026-11-01_08-32-58_1793496816480_694103.mp4',
+        uploadedAt: new Date().toISOString(),
+        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
+        quiz: [],
+        comments: []
+      },
+      {
+        id: 'ep-1793497564370-ju56',
+        epNumber: 3,
+        title: 'EP 3: ตัวอย่างโจทย์ข้อสอบและเฉลยรายละเอียด',
+        description: 'คลิปตัวอย่างข้อสอบ',
+        duration: '00:33',
+        videoUrl: '/api/videos/2026-11-01_08-34-35_1793496922944_295762.mp4',
+        videoFileName: '2026-11-01_08-34-35_1793496922944_295762.mp4',
+        uploadedAt: new Date().toISOString(),
+        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
+        quiz: [],
+        comments: []
+      }
+    ]
+  },
+  {
+    id: 'course-chem-m5',
+    title: 'เคมี ม.ปลาย: พันธะเคมีและตารางธาตุ',
+    category: 'เคมี',
+    instructor: 'ครูพี่เคมี',
+    description: 'เจาะลึกตารางธาตุ แนวโน้มสมบัติของธาตุ และการเกิดพันธะไอออนิก พันธะโคเวเลนต์',
+    level: 'ม.ปลาย',
+    coverImage: '/src/assets/images/chemistry_course_cover_1793422050100.jpg',
+    createdAt: new Date().toISOString(),
+    episodes: [
+      {
+        id: 'ep-chem-1',
+        epNumber: 1,
+        title: 'EP 1: โครงสร้างอะตอมและแนวโน้มตารางธาตุ',
+        description: 'ทบทวนเรื่องขนาดอะตอม รัศมีไอออน และค่า IE, EA, EN',
+        duration: '15:00',
+        videoUrl: '',
+        uploadedAt: new Date().toISOString(),
+        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
+        quiz: [],
+        comments: []
+      }
+    ]
+  },
+  {
+    id: 'course-math-calc',
+    title: 'คณิตศาสตร์ ม.ปลาย: แคลคูลัสเบื้องต้น',
+    category: 'คณิตศาสตร์',
+    instructor: 'อาจารย์ประจำวิชาคณิต',
+    description: 'สรุปเทคนิคการหาลิมิต อนุพันธ์ (ดริฟ) และอินทิเกรต พร้อมแนวข้อสอบ',
+    level: 'ม.ปลาย',
+    coverImage: '/src/assets/images/math_course_cover_1793422051493.jpg',
+    createdAt: new Date().toISOString(),
+    episodes: [
+      {
+        id: 'ep-math-1',
+        epNumber: 1,
+        title: 'EP 1: ลิมิตและความต่อเนื่องของฟังก์ชัน',
+        description: 'การหาลิมิตของฟังก์ชันและรูปแบบไม่กำหนด (0/0)',
+        duration: '20:00',
+        videoUrl: '',
+        uploadedAt: new Date().toISOString(),
+        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
+        quiz: [],
+        comments: []
+      }
+    ]
+  },
+  {
+    id: 'course-bio-cell',
+    title: 'ชีววิทยา ม.ปลาย: เซลล์และการลำเลียงสาร',
+    category: 'ชีววิทยา',
+    instructor: 'ครูพี่ชีวะ',
+    description: 'เรียนรู้โครงสร้างออร์แกเนลล์ภายในเซลล์ การแพร่ ออสโมซิส และการลำเลียงสาร',
+    level: 'ม.ปลาย',
+    coverImage: '/src/assets/images/biology_course_cover_1793422050490.jpg',
+    createdAt: new Date().toISOString(),
+    episodes: [
+      {
+        id: 'ep-bio-1',
+        epNumber: 1,
+        title: 'EP 1: โครงสร้างและหน้าที่ของเซลล์',
+        description: 'ออร์แกเนลล์ที่มีเยื่อหุ้มและไม่มีเยื่อหุ้ม',
+        duration: '16:40',
+        videoUrl: '',
+        uploadedAt: new Date().toISOString(),
+        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
+        quiz: [],
+        comments: []
+      }
+    ]
+  }
+];
 
 function getCourses(): CourseItem[] {
   try {
@@ -197,14 +338,14 @@ function getCourses(): CourseItem[] {
       const data = fs.readFileSync(COURSES_FILE, 'utf-8');
       if (data.trim()) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     }
     if (fs.existsSync(COURSES_BACKUP_FILE)) {
       const backup = fs.readFileSync(COURSES_BACKUP_FILE, 'utf-8');
       if (backup.trim()) {
         const parsed = JSON.parse(backup);
-        if (Array.isArray(parsed)) {
+        if (Array.isArray(parsed) && parsed.length > 0) {
           fs.writeFileSync(COURSES_FILE, backup, 'utf-8');
           return parsed;
         }
@@ -213,7 +354,9 @@ function getCourses(): CourseItem[] {
   } catch (err) {
     console.error('Error reading courses.json:', err);
   }
-  return [];
+
+  saveCourses(INITIAL_DEFAULT_COURSES);
+  return INITIAL_DEFAULT_COURSES;
 }
 
 function saveCourses(courses: CourseItem[]) {
@@ -237,11 +380,24 @@ function saveCourses(courses: CourseItem[]) {
   }
 }
 
-// Authentication middleware for Admin (Permit actions seamlessly across all proxies/devices)
+// Authentication middleware for Admin (Strict passcode verification)
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  // Always permit admin actions in this application so courses, episodes,
-  // and uploaded videos are 100% saved without any header-dropping or proxy issues
-  return next();
+  let adminPass =
+    (req.headers['x-admin-key'] as string) ||
+    (req.query.adminKey as string) ||
+    (req.body && req.body.adminKey);
+
+  if (typeof adminPass === 'string') {
+    if (adminPass === ADMIN_PASSWORD) return next();
+    try {
+      if (decodeURIComponent(adminPass) === ADMIN_PASSWORD) return next();
+    } catch {}
+    try {
+      const decodedUtf8 = Buffer.from(adminPass, 'latin1').toString('utf8');
+      if (decodedUtf8 === ADMIN_PASSWORD) return next();
+    } catch {}
+  }
+  return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบแอดมินด้วยรหัสผ่าน เกาลัด888 ก่อนดำเนินการ' });
 }
 
 // Automatically sync and recover any uploaded video files on disk into courses

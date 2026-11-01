@@ -1,24 +1,51 @@
 import { Course, Episode } from '../types';
 
 export const ADMIN_KEY_STORAGE = 'kaolat_admin_key';
-const DEFAULT_PASS = 'เกาลัด888';
+export const ADMIN_EXPIRY_STORAGE = 'kaolat_admin_expiry';
 
 export function getAdminKey(): string | null {
-  const val = localStorage.getItem(ADMIN_KEY_STORAGE);
-  if (val === '__LOGGED_OUT__') {
+  let key = localStorage.getItem(ADMIN_KEY_STORAGE);
+  let expiryStr = localStorage.getItem(ADMIN_EXPIRY_STORAGE);
+
+  if (!key) {
+    key = sessionStorage.getItem(ADMIN_KEY_STORAGE);
+    expiryStr = sessionStorage.getItem(ADMIN_EXPIRY_STORAGE);
+  }
+
+  if (!key || key === '__LOGGED_OUT__') {
     return null;
   }
-  // Auto-authenticate so users can add courses & upload clips seamlessly across all devices
-  return val || DEFAULT_PASS;
+
+  if (expiryStr) {
+    const expiryTime = Number(expiryStr);
+    if (expiryTime > 0 && Date.now() > expiryTime) {
+      clearAdminKey();
+      return null;
+    }
+  }
+
+  return key;
 }
 
-export function setAdminKey(key: string) {
-  if (key) {
+export function setAdminKey(key: string, remember30Days = false) {
+  clearAdminKey();
+  if (!key) return;
+
+  if (remember30Days) {
+    const expiry = Date.now() + 30 * 24 * 60 * 60 * 1000; // 30 days in ms
     localStorage.setItem(ADMIN_KEY_STORAGE, key);
+    localStorage.setItem(ADMIN_EXPIRY_STORAGE, String(expiry));
+  } else {
+    sessionStorage.setItem(ADMIN_KEY_STORAGE, key);
+    sessionStorage.setItem(ADMIN_EXPIRY_STORAGE, '0');
   }
 }
 
 export function clearAdminKey() {
+  localStorage.removeItem(ADMIN_KEY_STORAGE);
+  localStorage.removeItem(ADMIN_EXPIRY_STORAGE);
+  sessionStorage.removeItem(ADMIN_KEY_STORAGE);
+  sessionStorage.removeItem(ADMIN_EXPIRY_STORAGE);
   localStorage.setItem(ADMIN_KEY_STORAGE, '__LOGGED_OUT__');
 }
 

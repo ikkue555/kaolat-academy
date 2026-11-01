@@ -7,6 +7,12 @@ import {
   clearAdminKey,
   deleteCourse,
 } from './services/api';
+import {
+  subscribeToCourses,
+  saveCourseToFirestore,
+  deleteCourseFromFirestore,
+  seedInitialCoursesIfEmpty,
+} from './services/firestoreService';
 import { Navbar } from './components/Navbar';
 import { CourseCard } from './components/CourseCard';
 import { CourseDetailView } from './components/CourseDetailView';
@@ -90,49 +96,56 @@ export default function App() {
     };
   }, []);
 
-  // Check admin session on mount & start cross-platform live background auto-sync
+  // Check admin session on mount & subscribe to Firestore real-time database updates
   useEffect(() => {
     setIsAdmin(isAdminLoggedIn());
-    loadCourses(true);
 
-    // Auto-sync state every 5 seconds so all devices stay updated automatically
+    // 1. Initial load from server API & seed Firestore if empty
+    loadCourses(true).then((loadedCourses) => {
+      if (loadedCourses && loadedCourses.length > 0) {
+        seedInitialCoursesIfEmpty(loadedCourses).catch(() => {});
+      }
+    });
+
+    // 2. Real-time Firestore Cloud Subscription (Instantly triggers when ANY user on ANY link adds/edits a course or video)
+    const unsubscribeFirestore = subscribeToCourses(
+      (realtimeCourses) => {
+        if (realtimeCourses && realtimeCourses.length > 0) {
+          setCourses(realtimeCourses);
+          localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(realtimeCourses));
+        }
+      },
+      (err) => {
+        console.warn('Firestore subscription fallback to REST API:', err);
+      }
+    );
+
+    // 3. Fallback Auto-sync API poll every 5 seconds
     const syncInterval = setInterval(() => {
-      // Don't disturb user during modal interaction or video uploads
       if (isModalActiveRef.current) return;
       fetchCourses()
         .then((data) => {
           if (!isModalActiveRef.current && Array.isArray(data) && data.length > 0) {
-            setCourses(data);
-            localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(data));
+            setCourses((prev) => {
+              // Only update if changes detected
+              if (JSON.stringify(prev) !== JSON.stringify(data)) {
+                localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(data));
+                return data;
+              }
+              return prev;
+            });
           }
         })
         .catch(() => {});
     }, 5000);
 
-    // Sync immediately on tab/window focus or visibility change (e.g. user switches from phone to PC)
-    const handleSyncTrigger = () => {
-      if (document.visibilityState === 'visible' && !isModalActiveRef.current) {
-        fetchCourses()
-          .then((data) => {
-            if (!isModalActiveRef.current && Array.isArray(data) && data.length > 0) {
-              setCourses(data);
-              localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(data));
-            }
-          })
-          .catch(() => {});
-      }
-    };
-    window.addEventListener('focus', handleSyncTrigger);
-    document.addEventListener('visibilitychange', handleSyncTrigger);
-
     return () => {
+      unsubscribeFirestore();
       clearInterval(syncInterval);
-      window.removeEventListener('focus', handleSyncTrigger);
-      document.removeEventListener('visibilitychange', handleSyncTrigger);
     };
   }, []);
 
-  const loadCourses = async (showLoading = false) => {
+  const loadCourses = async (showLoading = false): Promise<Course[] | void> => {
     try {
       if (showLoading && courses.length === 0) setLoading(true);
       setError(null);
@@ -140,21 +153,10 @@ export default function App() {
       if (Array.isArray(data) && data.length > 0) {
         setCourses(data);
         localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(data));
-      } else {
-        // If server is clean or empty, check client localStorage backup
-        const cached = localStorage.getItem(LOCAL_COURSES_KEY);
-        if (cached) {
-          try {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) {
-              setCourses(parsed);
-            }
-          } catch {}
-        }
+        return data;
       }
     } catch (err: any) {
       console.warn('loadCourses error:', err);
-      // Fallback to localStorage if offline/network error
       const cached = localStorage.getItem(LOCAL_COURSES_KEY);
       if (cached) {
         try {
@@ -197,6 +199,7 @@ export default function App() {
     if (window.confirm(`คุณแน่ใจหรือไม่ว่าต้องการลบวิชา "${course.title}"?`)) {
       try {
         await deleteCourse(course.id);
+        await deleteCourseFromFirestore(course.id).catch(() => {});
         if (selectedCourseId === course.id) {
           setSelectedCourseId(null);
         }
@@ -229,7 +232,12 @@ export default function App() {
   });
 
   const handleCourseSaved = (savedCourse: Course) => {
-    // 1. Immediately update local state & localStorage so user sees the newly saved course instantly
+    // 1. Save to Firestore Cloud Real-time Database (Instantly notifies all other users & links)
+    saveCourseToFirestore(savedCourse).catch((err) => {
+      console.warn('Firestore save Course fallback:', err);
+    });
+
+    // 2. Immediately update local state & localStorage so user sees the newly saved course instantly
     setCourses((prev) => {
       const idx = prev.findIndex((c) => c.id === savedCourse.id);
       let next: Course[];
@@ -243,19 +251,19 @@ export default function App() {
       return next;
     });
 
-    // 2. Reset filters to ensure the saved course is immediately visible
+    // 3. Reset filters to ensure the saved course is immediately visible
     setSearchQuery('');
     setSelectedCategory('ทั้งหมด');
 
-    // 3. Clear editing state & close modal
+    // 4. Clear editing state & close modal
     const wasEditing = Boolean(editingCourse);
     setEditingCourse(null);
     setIsAddCourseModalOpen(false);
 
-    // 4. Show success toast notification
+    // 5. Show success toast notification
     showToast(wasEditing ? `แก้ไขข้อมูลวิชา "${savedCourse.title}" เรียบร้อยแล้ว` : `บันทึกวิชา "${savedCourse.title}" เรียบร้อยแล้ว`);
 
-    // 5. Fetch from server to ensure disk persistence
+    // 6. Fetch from server to ensure disk persistence
     loadCourses();
   };
 
@@ -465,10 +473,15 @@ export default function App() {
           setEditingCourse(null);
           setIsAddCourseModalOpen(true);
         }}
-        onSuccess={(courseId) => {
+        onSuccess={async (courseId) => {
           handleSelectCourseById(courseId);
-          loadCourses();
           showToast('บันทึกและอัปโหลดคลิปวิดีโอ EP สำเร็จเรียบร้อย');
+          await loadCourses();
+          // Sync updated course with new EP to Firestore Cloud
+          const updatedCourse = courses.find((c) => c.id === courseId);
+          if (updatedCourse) {
+            saveCourseToFirestore(updatedCourse).catch(() => {});
+          }
         }}
       />
 
@@ -491,7 +504,9 @@ export default function App() {
       <SyncModal
         isOpen={isSyncModalOpen}
         onClose={() => setIsSyncModalOpen(false)}
-        onSyncNow={loadCourses}
+        onSyncNow={async () => {
+          await loadCourses();
+        }}
       />
     </div>
   );

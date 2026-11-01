@@ -1,0 +1,27 @@
+{
+  "entities": {
+    "Course": {
+      "title": "Course",
+      "description": "Represents an online learning course",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string", "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "instructor": { "type": "string", "maxLength": 100 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "level": { "type": "string", "maxLength": 50 },
+        "coverImage": { "type": "string", "maxLength": 1000 },
+        "createdAt": { "type": "string" },
+        "episodes": { "type": "array" }
+      },
+      "required": ["id", "title"]
+    }
+  },
+  "firestore": {
+    "/courses/{courseId}": {
+      "schema": "Course",
+      "description": "Global collection of active courses synced in real-time"
+    }
+  }
+}

@@ -15,6 +15,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 }) => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [remember30Days, setRemember30Days] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -33,7 +34,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
     try {
       const isValid = await verifyAdminPass(password.trim());
       if (isValid) {
-        setAdminKey(password.trim());
+        setAdminKey(password.trim(), remember30Days);
         setPassword('');
         onSuccess();
         onClose();
@@ -94,6 +95,23 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+          </div>
+
+          {/* Remember 30 Days Option */}
+          <div className="flex items-center gap-2.5 pt-1">
+            <input
+              type="checkbox"
+              id="remember30Days"
+              checked={remember30Days}
+              onChange={(e) => setRemember30Days(e.target.checked)}
+              className="w-4 h-4 rounded border-slate-700 bg-slate-950 accent-amber-400 focus:ring-amber-400 focus:ring-offset-slate-900 cursor-pointer"
+            />
+            <label
+              htmlFor="remember30Days"
+              className="text-xs text-slate-300 font-medium select-none cursor-pointer"
+            >
+              บันทึกการเป็นแอดมินบนอุปกรณ์เครื่องนี้ 30 วัน
+            </label>
           </div>
 
           {error && (
