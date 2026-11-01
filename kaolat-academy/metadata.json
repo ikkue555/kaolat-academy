@@ -1,0 +1,6 @@
+{
+  "name": "KaoLat Academy - แพลตฟอร์มเรียนออนไลน์",
+  "description": "แพลตฟอร์มคอร์สเรียนออนไลน์ พร้อมระบบอัปโหลดวิดีโอจากเครื่อง แยกรายวิชาและ EP บทเรียน และระบบแอดมินจัดการเนื้อหา",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
