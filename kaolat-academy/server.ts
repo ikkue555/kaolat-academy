@@ -7,18 +7,20 @@ import multer from 'multer';
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const isProd = process.env.NODE_ENV === 'production';
+const isVercel = Boolean(process.env.VERCEL);
 const ADMIN_PASSWORD = 'เกาลัด888';
 
-// Ensure required directories exist
-const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads', 'videos');
-const UPLOADS_IMAGES_DIR = path.resolve(process.cwd(), 'uploads', 'images');
-const DATA_DIR = path.resolve(process.cwd(), 'data');
+// Ensure required directories exist (use /tmp when running on Vercel read-only filesystem)
+const baseDir = isVercel ? '/tmp' : process.cwd();
+const UPLOADS_DIR = path.resolve(baseDir, 'uploads', 'videos');
+const UPLOADS_IMAGES_DIR = path.resolve(baseDir, 'uploads', 'images');
+const DATA_DIR = path.resolve(baseDir, 'data');
 const COURSES_FILE = path.join(DATA_DIR, 'courses.json');
 const PROGRESS_FILE = path.join(DATA_DIR, 'progress.json');
 const NOTES_FILE = path.join(DATA_DIR, 'notes.json');
 const HISTORY_FILE = path.join(DATA_DIR, 'history.json');
 
-const TEMP_CHUNKS_DIR = path.resolve(process.cwd(), 'uploads', 'temp_chunks');
+const TEMP_CHUNKS_DIR = path.resolve(baseDir, 'uploads', 'temp_chunks');
 
 if (!fs.existsSync(UPLOADS_DIR)) {
   fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -200,137 +202,7 @@ export interface CourseItem {
 
 const COURSES_BACKUP_FILE = path.join(DATA_DIR, 'courses.backup.json');
 
-const INITIAL_DEFAULT_COURSES: CourseItem[] = [
-  {
-    id: 'course-1793496540162-y9mfl',
-    title: 'ฟิสิกส์ ม.4: กลศาสตร์และการเคลื่อนที่',
-    category: 'ฟิสิกส์',
-    instructor: 'อาจารย์เกาลัด',
-    description: 'เนื้อหาฟิสิกส์ ม.4 เทอม 1 เรื่องการเคลื่อนที่แนวตรงและกฎนิวตัน',
-    level: 'ม.ปลาย',
-    coverImage: '/src/assets/images/physics_course_cover_1793422048834.jpg',
-    createdAt: new Date().toISOString(),
-    episodes: [
-      {
-        id: 'ep-1793497564369-s8ps',
-        epNumber: 1,
-        title: 'EP 1: การเคลื่อนที่แนวตรงและแรง (ตอนที่ 1)',
-        description: 'บทเรียนฟิสิกส์บรรยายเต็มความยาว 29 นาที',
-        duration: '29:43',
-        videoUrl: '/api/videos/2025-12-18_19-27-06_1793496525521_571169.mp4',
-        videoFileName: '2025-12-18_19-27-06_1793496525521_571169.mp4',
-        uploadedAt: new Date().toISOString(),
-        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
-        quiz: [
-          {
-            question: 'หน่วยของแรงในระบบ SI คืออะไร?',
-            options: ['จูล (Joule)', 'นิวตัน (Newton)', 'วัตต์ (Watt)', 'ปาสคาล (Pascal)'],
-            answerIndex: 1
-          }
-        ],
-        comments: []
-      },
-      {
-        id: 'ep-1793497564370-8dep',
-        epNumber: 2,
-        title: 'EP 2: สรุปใจความสำคัญและทบทวนสูตร',
-        description: 'คลิปทบทวนความเข้าใจ',
-        duration: '00:23',
-        videoUrl: '/api/videos/2026-11-01_08-32-58_1793496816480_694103.mp4',
-        videoFileName: '2026-11-01_08-32-58_1793496816480_694103.mp4',
-        uploadedAt: new Date().toISOString(),
-        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
-        quiz: [],
-        comments: []
-      },
-      {
-        id: 'ep-1793497564370-ju56',
-        epNumber: 3,
-        title: 'EP 3: ตัวอย่างโจทย์ข้อสอบและเฉลยรายละเอียด',
-        description: 'คลิปตัวอย่างข้อสอบ',
-        duration: '00:33',
-        videoUrl: '/api/videos/2026-11-01_08-34-35_1793496922944_295762.mp4',
-        videoFileName: '2026-11-01_08-34-35_1793496922944_295762.mp4',
-        uploadedAt: new Date().toISOString(),
-        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
-        quiz: [],
-        comments: []
-      }
-    ]
-  },
-  {
-    id: 'course-chem-m5',
-    title: 'เคมี ม.ปลาย: พันธะเคมีและตารางธาตุ',
-    category: 'เคมี',
-    instructor: 'ครูพี่เคมี',
-    description: 'เจาะลึกตารางธาตุ แนวโน้มสมบัติของธาตุ และการเกิดพันธะไอออนิก พันธะโคเวเลนต์',
-    level: 'ม.ปลาย',
-    coverImage: '/src/assets/images/chemistry_course_cover_1793422050100.jpg',
-    createdAt: new Date().toISOString(),
-    episodes: [
-      {
-        id: 'ep-chem-1',
-        epNumber: 1,
-        title: 'EP 1: โครงสร้างอะตอมและแนวโน้มตารางธาตุ',
-        description: 'ทบทวนเรื่องขนาดอะตอม รัศมีไอออน และค่า IE, EA, EN',
-        duration: '15:00',
-        videoUrl: '',
-        uploadedAt: new Date().toISOString(),
-        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
-        quiz: [],
-        comments: []
-      }
-    ]
-  },
-  {
-    id: 'course-math-calc',
-    title: 'คณิตศาสตร์ ม.ปลาย: แคลคูลัสเบื้องต้น',
-    category: 'คณิตศาสตร์',
-    instructor: 'อาจารย์ประจำวิชาคณิต',
-    description: 'สรุปเทคนิคการหาลิมิต อนุพันธ์ (ดริฟ) และอินทิเกรต พร้อมแนวข้อสอบ',
-    level: 'ม.ปลาย',
-    coverImage: '/src/assets/images/math_course_cover_1793422051493.jpg',
-    createdAt: new Date().toISOString(),
-    episodes: [
-      {
-        id: 'ep-math-1',
-        epNumber: 1,
-        title: 'EP 1: ลิมิตและความต่อเนื่องของฟังก์ชัน',
-        description: 'การหาลิมิตของฟังก์ชันและรูปแบบไม่กำหนด (0/0)',
-        duration: '20:00',
-        videoUrl: '',
-        uploadedAt: new Date().toISOString(),
-        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
-        quiz: [],
-        comments: []
-      }
-    ]
-  },
-  {
-    id: 'course-bio-cell',
-    title: 'ชีววิทยา ม.ปลาย: เซลล์และการลำเลียงสาร',
-    category: 'ชีววิทยา',
-    instructor: 'ครูพี่ชีวะ',
-    description: 'เรียนรู้โครงสร้างออร์แกเนลล์ภายในเซลล์ การแพร่ ออสโมซิส และการลำเลียงสาร',
-    level: 'ม.ปลาย',
-    coverImage: '/src/assets/images/biology_course_cover_1793422050490.jpg',
-    createdAt: new Date().toISOString(),
-    episodes: [
-      {
-        id: 'ep-bio-1',
-        epNumber: 1,
-        title: 'EP 1: โครงสร้างและหน้าที่ของเซลล์',
-        description: 'ออร์แกเนลล์ที่มีเยื่อหุ้มและไม่มีเยื่อหุ้ม',
-        duration: '16:40',
-        videoUrl: '',
-        uploadedAt: new Date().toISOString(),
-        chapters: [{ time: '00:00', title: 'เริ่มต้นบทเรียน' }],
-        quiz: [],
-        comments: []
-      }
-    ]
-  }
-];
+const INITIAL_DEFAULT_COURSES: CourseItem[] = [];
 
 function getCourses(): CourseItem[] {
   try {
@@ -338,14 +210,14 @@ function getCourses(): CourseItem[] {
       const data = fs.readFileSync(COURSES_FILE, 'utf-8');
       if (data.trim()) {
         const parsed = JSON.parse(data);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) return parsed;
       }
     }
     if (fs.existsSync(COURSES_BACKUP_FILE)) {
       const backup = fs.readFileSync(COURSES_BACKUP_FILE, 'utf-8');
       if (backup.trim()) {
         const parsed = JSON.parse(backup);
-        if (Array.isArray(parsed) && parsed.length > 0) {
+        if (Array.isArray(parsed)) {
           fs.writeFileSync(COURSES_FILE, backup, 'utf-8');
           return parsed;
         }
@@ -355,8 +227,8 @@ function getCourses(): CourseItem[] {
     console.error('Error reading courses.json:', err);
   }
 
-  saveCourses(INITIAL_DEFAULT_COURSES);
-  return INITIAL_DEFAULT_COURSES;
+  saveCourses([]);
+  return [];
 }
 
 function saveCourses(courses: CourseItem[]) {
@@ -429,19 +301,7 @@ function syncOrphanedVideos() {
     if (files.length === 0) return;
 
     const courses = getCourses();
-    if (courses.length === 0) {
-      courses.push({
-        id: `course-${Date.now()}`,
-        title: 'ฟิสิกส์ ม.4: กลศาสตร์และการเคลื่อนที่',
-        category: 'ฟิสิกส์',
-        instructor: 'อาจารย์เกาลัด',
-        description: 'เนื้อหาฟิสิกส์ ม.4 เทอม 1 เรื่องการเคลื่อนที่แนวตรงและกฎนิวตัน',
-        level: 'ม.ปลาย',
-        coverImage: '/src/assets/images/physics_course_cover_1793422048834.jpg',
-        createdAt: new Date().toISOString(),
-        episodes: [],
-      });
-    }
+    if (courses.length === 0) return;
 
     const targetCourse = courses[0];
     let changed = false;
@@ -1095,7 +955,11 @@ async function startServer() {
   server.requestTimeout = 300000;
 }
 
-startServer().catch((err) => {
-  console.error('Failed to start server:', err);
-  process.exit(1);
-});
+export default app;
+
+if (!isVercel) {
+  startServer().catch((err) => {
+    console.error('Failed to start server:', err);
+    process.exit(1);
+  });
+}

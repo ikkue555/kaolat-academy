@@ -92,18 +92,14 @@ export async function deleteCourseFromFirestore(courseId: string): Promise<void>
 }
 
 /**
- * Seed initial courses into Firestore if the collection is currently empty
+ * Clean up legacy default physics course if present in Firestore
  */
-export async function seedInitialCoursesIfEmpty(initialCourses: Course[]): Promise<void> {
+export async function seedInitialCoursesIfEmpty(_initialCourses?: Course[]): Promise<void> {
   try {
-    const snapshot = await getDocs(query(collection(db, 'courses')));
-    if (snapshot.empty && initialCourses.length > 0) {
-      console.log('Seeding initial default courses to Firestore cloud database...');
-      for (const course of initialCourses) {
-        await saveCourseToFirestore(course);
-      }
-    }
+    // Delete legacy default physics course from Firestore if exists
+    const physicsDocRef = doc(db, 'courses', 'course-1793496540162-y9mfl');
+    await deleteDoc(physicsDocRef).catch(() => {});
   } catch (err) {
-    console.warn('Error checking/seeding Firestore:', err);
+    console.warn('Error cleaning legacy physics course:', err);
   }
 }

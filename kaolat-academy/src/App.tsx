@@ -29,7 +29,13 @@ export default function App() {
   const [courses, setCourses] = useState<Course[]>(() => {
     try {
       const saved = localStorage.getItem(LOCAL_COURSES_KEY);
-      return saved ? JSON.parse(saved) : [];
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((c: Course) => c.id !== 'course-1793496540162-y9mfl');
+        }
+      }
+      return [];
     } catch {
       return [];
     }
@@ -40,10 +46,8 @@ export default function App() {
   // Auto-sync status modal
   const [isSyncModalOpen, setIsSyncModalOpen] = useState<boolean>(false);
 
-  // Selected course for detail view (persisted in localStorage across refreshes)
-  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(() => {
-    return localStorage.getItem(LOCAL_SELECTED_KEY) || null;
-  });
+  // Always default to null on page enter/refresh to show "รายการวิชาทั้งหมด" catalog home page
+  const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
 
   const handleSelectCourseById = (courseId: string | null) => {
     setSelectedCourseId(courseId);
@@ -100,37 +104,35 @@ export default function App() {
   useEffect(() => {
     setIsAdmin(isAdminLoggedIn());
 
-    // 1. Initial load from server API & seed Firestore if empty
-    loadCourses(true).then((loadedCourses) => {
-      if (loadedCourses && loadedCourses.length > 0) {
-        seedInitialCoursesIfEmpty(loadedCourses).catch(() => {});
-      }
-    });
+    // 1. Initial cleanup of legacy default physics course
+    seedInitialCoursesIfEmpty().catch(() => {});
 
-    // 2. Real-time Firestore Cloud Subscription (Instantly triggers when ANY user on ANY link adds/edits a course or video)
+    // 2. Initial load from server API
+    loadCourses(true);
+
+    // 3. Real-time Firestore Cloud Subscription (Instantly triggers when ANY user on ANY link adds/edits a course or video)
     const unsubscribeFirestore = subscribeToCourses(
       (realtimeCourses) => {
-        if (realtimeCourses && realtimeCourses.length > 0) {
-          setCourses(realtimeCourses);
-          localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(realtimeCourses));
-        }
+        const cleaned = (realtimeCourses || []).filter((c) => c.id !== 'course-1793496540162-y9mfl');
+        setCourses(cleaned);
+        localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(cleaned));
       },
       (err) => {
         console.warn('Firestore subscription fallback to REST API:', err);
       }
     );
 
-    // 3. Fallback Auto-sync API poll every 5 seconds
+    // 4. Fallback Auto-sync API poll every 5 seconds
     const syncInterval = setInterval(() => {
       if (isModalActiveRef.current) return;
       fetchCourses()
         .then((data) => {
-          if (!isModalActiveRef.current && Array.isArray(data) && data.length > 0) {
+          if (!isModalActiveRef.current && Array.isArray(data)) {
+            const cleaned = data.filter((c) => c.id !== 'course-1793496540162-y9mfl');
             setCourses((prev) => {
-              // Only update if changes detected
-              if (JSON.stringify(prev) !== JSON.stringify(data)) {
-                localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(data));
-                return data;
+              if (JSON.stringify(prev) !== JSON.stringify(cleaned)) {
+                localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(cleaned));
+                return cleaned;
               }
               return prev;
             });
@@ -150,10 +152,11 @@ export default function App() {
       if (showLoading && courses.length === 0) setLoading(true);
       setError(null);
       const data = await fetchCourses();
-      if (Array.isArray(data) && data.length > 0) {
-        setCourses(data);
-        localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(data));
-        return data;
+      if (Array.isArray(data)) {
+        const cleaned = data.filter((c) => c.id !== 'course-1793496540162-y9mfl');
+        setCourses(cleaned);
+        localStorage.setItem(LOCAL_COURSES_KEY, JSON.stringify(cleaned));
+        return cleaned;
       }
     } catch (err: any) {
       console.warn('loadCourses error:', err);
@@ -161,7 +164,10 @@ export default function App() {
       if (cached) {
         try {
           const parsed = JSON.parse(cached);
-          if (Array.isArray(parsed)) setCourses(parsed);
+          if (Array.isArray(parsed)) {
+            const cleaned = parsed.filter((c: Course) => c.id !== 'course-1793496540162-y9mfl');
+            setCourses(cleaned);
+          }
         } catch {}
       }
     } finally {
