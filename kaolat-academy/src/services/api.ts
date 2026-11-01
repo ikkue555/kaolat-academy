@@ -458,47 +458,39 @@ export async function uploadVideoFile(
   throw new Error('อัปโหลดไฟล์วิดีโอล้มเหลว');
 }
 
-export function uploadImageFile(file: File): Promise<{ imageUrl: string; filename: string }> {
+export function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadImageFile(file: File): Promise<{ imageUrl: string; filename: string }> {
+  try {
+    const key = getAdminKey();
     const formData = new FormData();
     formData.append('image', file);
 
-    const key = getAdminKey();
     const query = key ? `?adminKey=${encodeURIComponent(key)}` : '';
-    xhr.open('POST', `/api/upload-image${query}`);
-    xhr.timeout = 45000;
+    const res = await fetch(`/api/upload-image${query}`, {
+      method: 'POST',
+      headers: key ? { 'x-admin-key': encodeURIComponent(key) } : {},
+      body: formData,
+    });
 
-    if (key) {
-      xhr.setRequestHeader('x-admin-key', encodeURIComponent(key));
-    }
-
-    xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) {
-        try {
-          const resp = JSON.parse(xhr.responseText);
-          resolve(resp);
-        } catch {
-          reject(new Error('เกิดข้อผิดพลาดในการประมวลผลรูปภาพ'));
-        }
-      } else {
-        try {
-          const err = JSON.parse(xhr.responseText);
-          reject(new Error(err.error || 'อัปโหลดรูปภาพไม่สำเร็จ'));
-        } catch {
-          reject(new Error(`อัปโหลดรูปภาพไม่สำเร็จ (${xhr.status})`));
-        }
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.imageUrl) {
+        return { imageUrl: data.imageUrl, filename: data.filename || file.name };
       }
-    };
+    }
+  } catch (err) {
+    console.warn('Image upload endpoint error, falling back to Data URL:', err);
+  }
 
-    xhr.ontimeout = () => {
-      reject(new Error('การอัปโหลดรูปภาพหมดเวลา กรุณาลองใหม่อีกครั้ง'));
-    };
-
-    xhr.onerror = () => {
-      reject(new Error('เกิดข้อผิดพลาดในการเชื่อมต่อเครือข่าย'));
-    };
-
-    xhr.send(formData);
-  });
+  // Fallback to Data URL if upload endpoint failed or returned non-ok response
+  const dataUrl = await fileToDataUrl(file);
+  return { imageUrl: dataUrl, filename: file.name };
 }

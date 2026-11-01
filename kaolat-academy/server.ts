@@ -380,24 +380,45 @@ function saveCourses(courses: CourseItem[]) {
   }
 }
 
+// Robust helper for matching Admin Passcode ('เกาลัด888' or 'kaolat888') across all encodings
+function isMatchingAdminPass(input?: string): boolean {
+  if (!input) return false;
+  const raw = String(input).trim();
+  const validList = [
+    'เกาลัด888',
+    'kaolat888',
+    'เกาลัด 888',
+    encodeURIComponent('เกาลัด888'),
+  ];
+
+  if (validList.includes(raw)) return true;
+
+  try {
+    const decoded = decodeURIComponent(raw).trim();
+    if (validList.includes(decoded)) return true;
+  } catch {}
+
+  try {
+    const normRaw = raw.normalize('NFC');
+    for (const v of validList) {
+      if (v.normalize('NFC') === normRaw) return true;
+    }
+  } catch {}
+
+  return false;
+}
+
 // Authentication middleware for Admin (Strict passcode verification)
 function requireAdmin(req: Request, res: Response, next: NextFunction) {
-  let adminPass =
+  const adminPass =
     (req.headers['x-admin-key'] as string) ||
     (req.query.adminKey as string) ||
     (req.body && req.body.adminKey);
 
-  if (typeof adminPass === 'string') {
-    if (adminPass === ADMIN_PASSWORD) return next();
-    try {
-      if (decodeURIComponent(adminPass) === ADMIN_PASSWORD) return next();
-    } catch {}
-    try {
-      const decodedUtf8 = Buffer.from(adminPass, 'latin1').toString('utf8');
-      if (decodedUtf8 === ADMIN_PASSWORD) return next();
-    } catch {}
+  if (isMatchingAdminPass(adminPass)) {
+    return next();
   }
-  return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบแอดมินด้วยรหัสผ่าน เกาลัด888 ก่อนดำเนินการ' });
+  return res.status(401).json({ error: 'กรุณาเข้าสู่ระบบแอดมินด้วยรหัสผ่าน เกาลัด888' });
 }
 
 // Automatically sync and recover any uploaded video files on disk into courses
@@ -471,7 +492,7 @@ syncOrphanedVideos();
 // 1. Verify Admin Password
 app.post('/api/auth/admin-login', (req: Request, res: Response) => {
   const { password } = req.body;
-  if (password === ADMIN_PASSWORD) {
+  if (isMatchingAdminPass(password)) {
     res.json({ success: true, message: 'เข้าสู่ระบบแอดมินสำเร็จ' });
   } else {
     res.status(401).json({ success: false, error: 'รหัสผ่านไม่ถูกต้อง' });
@@ -796,12 +817,25 @@ app.post('/api/upload-video-chunk', requireAdmin, uploadChunk.single('chunk'), a
   }
 });
 
-// 12. Video Streaming with HTTP 206 Partial Content (Range Support)
+// 12. Video Streaming with HTTP 206 Partial Content (Range Support) and Cross-Domain Sync
 app.get('/api/videos/:filename', (req: Request, res: Response) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Range, Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
   const filename = path.basename(req.params.filename);
   const filePath = path.join(UPLOADS_DIR, filename);
 
   if (!fs.existsSync(filePath)) {
+    const devOrigin = 'https://ais-dev-nmed6zzfqwmdfunwgdat3u-425938260615.asia-southeast1.run.app';
+    const host = req.headers.host || '';
+    if (!host.includes('ais-dev')) {
+      return res.redirect(`${devOrigin}/api/videos/${encodeURIComponent(filename)}`);
+    }
     return res.status(404).send('ไม่พบไฟล์วิดีโอนี้ในระบบ');
   }
 
@@ -833,6 +867,7 @@ app.get('/api/videos/:filename', (req: Request, res: Response) => {
       'Accept-Ranges': 'bytes',
       'Content-Length': chunksize,
       'Content-Type': contentType,
+      'Access-Control-Allow-Origin': '*',
     };
 
     res.writeHead(206, head);
@@ -842,6 +877,7 @@ app.get('/api/videos/:filename', (req: Request, res: Response) => {
       'Content-Length': fileSize,
       'Content-Type': contentType,
       'Accept-Ranges': 'bytes',
+      'Access-Control-Allow-Origin': '*',
     };
     res.writeHead(200, head);
     fs.createReadStream(filePath).pipe(res);
@@ -871,12 +907,18 @@ app.post('/api/upload-image', requireAdmin, (req: Request, res: Response) => {
   });
 });
 
-// 14. Image File Serving
+// 14. Image File Serving with CORS & Origin Redirect
 app.get('/api/images/:filename', (req: Request, res: Response) => {
+  res.setHeader('Access-Control-Allow-Origin', '*');
   const filename = path.basename(req.params.filename);
   const filePath = path.join(UPLOADS_IMAGES_DIR, filename);
 
   if (!fs.existsSync(filePath)) {
+    const devOrigin = 'https://ais-dev-nmed6zzfqwmdfunwgdat3u-425938260615.asia-southeast1.run.app';
+    const host = req.headers.host || '';
+    if (!host.includes('ais-dev')) {
+      return res.redirect(`${devOrigin}/api/images/${encodeURIComponent(filename)}`);
+    }
     return res.status(404).send('ไม่พบไฟล์รูปภาพนี้');
   }
 
